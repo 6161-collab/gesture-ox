@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gesture Tic-Tac-Toe</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#20243a;background:#f4f5fb}
+*{box-sizing:border-box}body{margin:0;padding:20px}
+main{max-width:760px;margin:auto}
+header,.panel{background:white;border:1px solid #e1e3ed;border-radius:16px;padding:16px;margin-bottom:14px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1{font-size:24px;margin:0}.sub{color:#687087;font-size:13px}
+.scores{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.score{background:white;border:1px solid #e1e3ed;border-radius:14px;padding:12px;text-align:center}
+.score strong{display:block;font-size:32px;margin:4px}
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:420px;margin:12px auto}
+.cell{aspect-ratio:1;border:2px solid #d9dceb;border-radius:12px;background:#fafaff;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;padding:4px}
+.cell.selected{border-color:#6556d9;background:#efedff}
+.cell img{width:100%;height:66%;object-fit:cover;border-radius:6px}
+.mark{font-size:42px;font-weight:900}.small{font-size:11px;color:#697087}
+video{width:100%;max-width:520px;aspect-ratio:4/3;object-fit:cover;background:#161616;border-radius:12px;display:block;margin:10px auto}
+button{border:1px solid #d6d9e6;border-radius:10px;padding:11px 14px;font-size:14px;font-weight:bold;cursor:pointer;background:white}
+button.primary{background:#6556d9;color:white;border-color:#6556d9}
+button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#message,#detected{text-align:center;font-weight:bold;margin-top:12px}
+.hint{color:#687087;font-size:13px;line-height:1.6}
+@media(max-width:480px){body{padding:10px}h1{font-size:20px}.mark{font-size:32px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="sub">เกมตรวจจับท่าทางด้วยกล้อง</div><h1>Gesture Tic-Tac-Toe</h1></div><div style="text-align:right"><div class="sub">เป้าหมาย 5 คะแนน</div><b id="round">รอบที่ 1</b></div></header>
+<section class="scores">
+ <div class="score">ผู้เล่น O<strong id="scoreO">0</strong><span class="sub">ทำท่าวงกลม</span></div>
+ <div class="score">ผู้เล่น X<strong id="scoreX">0</strong><span class="sub">ไขว้นิ้วชี้สองมือ</span></div>
+</section>
+<section class="panel">
+ <b>กระดานเกม</b><span id="turn" style="float:right" class="sub">ตา: ผู้เล่น O</span>
+ <div class="board" id="board">
+  <button class="cell" data-cell="0">1</button><button class="cell" data-cell="1">2</button><button class="cell" data-cell="2">3</button>
+  <button class="cell" data-cell="3">4</button><button class="cell" data-cell="4">5</button><button class="cell" data-cell="5">6</button>
+  <button class="cell" data-cell="6">7</button><button class="cell" data-cell="7">8</button><button class="cell" data-cell="8">9</button>
+ </div>
+ <p class="hint" style="text-align:center">เลือกช่องที่ต้องการลงก่อน แล้วทำท่าหน้ากล้อง</p>
+</section>
+<section class="panel">
+ <b>📷 กล้องตรวจจับท่าทาง</b><span id="cameraState" class="sub" style="float:right">ยังไม่เปิดกล้อง</span>
+ <video id="cam" autoplay playsinline muted></video>
+ <canvas id="photo" hidden></canvas>
+ <div class="actions"><button class="primary" id="start">เปิดกล้อง</button><button id="capture" disabled>ถ่ายภาพและตรวจจับ</button></div>
+ <p id="detected">รอการตรวจจับท่าทาง</p>
+ <p class="hint">O = ใช้นิ้วโป้งกับนิ้วชี้แตะกันเป็นวงกลม<br>X = ไขว้นิ้วชี้ทั้งสองมือให้ตัดกัน</p>
+ <p class="hint" id="selection">ยังไม่ได้เลือกช่อง</p>
+ <button class="primary" id="place" style="width:100%" disabled>ยืนยันการลงเครื่องหมาย</button>
+</section>
+<section class="panel">
+ <b>วิธีเล่น</b>
+ <p class="hint">1. ผู้เล่น O เลือกช่องและทำท่าวงกลมหน้ากล้อง<br>
+ 2. ผู้เล่น X เลือกช่องและทำท่าไขว้นิ้วชี้หน้ากล้อง<br>
+ 3. ระบบตรวจจับท่าและถ่ายภาพ<br>
+ 4. สลับกันเล่นจนมีผู้ชนะในกระดาน<br>
+ 5. ผู้ชนะได้ 1 คะแนน และเริ่มกระดานใหม่<br>
+ 6. คนแรกที่ได้ 5 คะแนนเป็นผู้ชนะเกม</p>
+ <button id="reset">เริ่มเกมใหม่</button>
+</section>
+<p id="message" role="status">กดเปิดกล้องเพื่อเริ่มเล่น!</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script>
+(() => {
+const $=id=>document.getElementById(id);
+let board=Array(9).fill(null), scores={O:0,X:0}, turn='O', selected=-1;
+let gesture=null, photoData=null, model=null, latestHands=[], running=false, finished=false, busy=false;
+const video=$('cam'),canvas=$('photo'),ctx=canvas.getContext('2d');
+const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function status(s){$('message').textContent=s}
+function render(){
+ document.querySelectorAll('.cell').forEach((el,i)=>{
+  el.classList.toggle('selected',i===selected);
+  el.innerHTML=board[i]?`<span class="mark">${board[i].mark}</span><span class="small">ผู้เล่น ${board[i].mark}</span>${board[i].image?`<img src="${board[i].image}" alt="ภาพท่าทางผู้เล่น">`:''}`:`<span class="small">${i+1}</span>`;
+  el.disabled=!!board[i]||finished;
+ });
+ $('scoreO').textContent=scores.O;$('scoreX').textContent=scores.X;
+ $('turn').textContent=finished?'จบเกม':`ตา: ผู้เล่น ${turn}`;
+ $('round').textContent='รอบที่ '+(scores.O+scores.X+1);
+ $('selection').textContent=selected<0?'ยังไม่ได้เลือกช่อง':`เลือกช่องที่ ${selected+1}`;
+}
+document.querySelectorAll('.cell').forEach(el=>el.addEventListener('click',()=>{
+ if(finished)return;selected=Number(el.dataset.cell);gesture=null;photoData=null;
+ $('detected').textContent='เลือกช่องแล้ว ทำท่าหน้ากล้องได้เลย';$('place').disabled=true;render();
+}));
+function classify(hands){
+ if(!hands||!hands.length)return null;
+ for(const h of hands){
+  const d=(a,b)=>Math.hypot(h[a].x-h[b].x,h[a].y-h[b].y);
+  const scale=Math.max(d(0,9),.06);
+  if(d(4,8)/scale<.34)return 'O';
+ }
+ if(hands.length>=2){
+  const a=hands[0][8],b=hands[1][8],c=hands[0][5],d=hands[1][5];
+  const cross=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+  const s1=cross(c,a,d),s2=cross(c,a,b),s3=cross(d,b,c),s4=cross(d,b,a);
+  if(s1*s2<0&&s3*s4<0)return 'X';
+ }
+ return null;
+}
+async function start(){
+ try{
+  $('start').disabled=true;
+  if(!window.Hands)throw Error('โหลดระบบตรวจจับไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');
+  model=new Hands({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+f});
+  model.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.65,minTrackingConfidence:.6});
+  model.onResults(r=>{latestHands=r.multiHandLandmarks||[];});
+  const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
+  video.srcObject=stream;await video.play();running=true;
+  $('cameraState').textContent='กล้องพร้อมใช้งาน';$('capture').disabled=false;
+  $('start').textContent='กล้องเปิดแล้ว';status('กล้องพร้อมแล้ว เลือกช่องและทำท่าได้เลย');loop();
+ }catch(e){
+  $('start').disabled=false;$('cameraState').textContent='เปิดกล้องไม่สำเร็จ';
+  status('เปิดกล้องไม่ได้: '+(e.message||'กรุณาอนุญาตการใช้กล้องและลองอีกครั้ง'));
+ }
+}
+async function loop(){
+ if(!running||!model)return;
+ if(!busy&&video.readyState>=2){busy=true;try{await model.send({image:video})}catch(e){}busy=false}
+ requestAnimationFrame(loop);
+}
+$('start').addEventListener('click',start);
+$('capture').addEventListener('click',()=>{
+ if(selected<0){status('กรุณาเลือกช่องบนกระดานก่อน');return}
+ if(board[selected])return;
+ const g=classify(latestHands);
+ if(!g){gesture=null;photoData=null;$('detected').textContent='ยังตรวจจับท่า O หรือ X ไม่ได้';$('place').disabled=true;status('ลองทำท่าให้ชัดเจนและอยู่ในกรอบกล้อง');return}
+ canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+ ctx.save();ctx.translate(canvas.width,0);ctx.scale(-1,1);ctx.drawImage(video,0,0);ctx.restore();
+ photoData=canvas.toDataURL('image/jpeg',.7);gesture=g;
+ $('detected').textContent='ตรวจพบ '+g+' ✓';$('place').disabled=false;
+ status('ตรวจพบ '+g+' แล้ว กดยืนยันเพื่อลงในช่องที่เลือก');
+});
+$('place').addEventListener('click',()=>{
+ if(selected<0||!gesture||!photoData||finished||board[selected])return;
+ if(gesture!==turn){
+  status('ตอนนี้เป็นตาของผู้เล่น '+turn+' กรุณาทำท่า '+turn+' ใหม่');
+  gesture=null;photoData=null;$('place').disabled=true;$('detected').textContent='ท่าไม่ตรงกับผู้เล่น';return;
+ }
+ board[selected]={mark:gesture,image:photoData};selected=-1;gesture=null;photoData=null;
+ $('place').disabled=true;$('detected').textContent='รอผู้เล่นคนถัดไป';
+ const win=wins.find(line=>line.every(i=>board[i]?.mark===turn));
+ if(win){
+  scores[turn]++;
+  if(scores[turn]>=5){finished=true;status('🏆 ผู้เล่น '+turn+' ชนะเกม! ได้ครบ 5 คะแนนแล้ว')}
+  else status('🎉 ผู้เล่น '+turn+' ชนะรอบนี้! ได้ 1 คะแนน');
+  render();
+  if(!finished)setTimeout(()=>{board=Array(9).fill(null);turn='O';render();status('เริ่มรอบใหม่! ผู้เล่น O เริ่มก่อน')},1800);
+  return;
+ }
+ if(board.every(Boolean)){
+  status('เสมอกัน! ไม่มีคะแนน เริ่มรอบใหม่');
+  render();setTimeout(()=>{board=Array(9).fill(null);turn='O';render()},1400);return;
+ }
+ turn=turn==='O'?'X':'O';render();status('ลงเครื่องหมายเรียบร้อย ตาของผู้เล่น '+turn);
+});
+$('reset').addEventListener('click',()=>{
+ board=Array(9).fill(null);scores={O:0,X:0};turn='O';selected=-1;gesture=null;photoData=null;finished=false;
+ $('place').disabled=true;$('detected').textContent='รอการตรวจจับท่าทาง';render();status('เริ่มเกมใหม่แล้ว!');
+});
+render();
+})();
+</script>
+</body>
+</html>
